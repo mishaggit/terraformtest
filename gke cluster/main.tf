@@ -1,25 +1,29 @@
-module "gke" {
-  source                 = "terraform-google-modules/kubernetes-engine/google//modules/private-cluster"
-  project_id             = var.project_id
-  name                   = "${var.cluster_name}-${var.env_name}"
-  regional               = true
-  region                 = var.region
-  network                = module.gcp-network.network_name
-  subnetwork             = module.gcp-network.subnets_names[0]
-  ip_range_pods          = var.ip_range_pods_name
-  ip_range_services      = var.ip_range_services_name
-  node_pools = [
-    {
-      name                      = "node-pool"
-      machine_type              = "e2-medium"
-      node_locations            = "europe-west1-b,europe-west1-c,europe-west1-d"
-      min_count                 = 1
-      max_count                 = 2
-      disk_size_gb              = 30
-    },
-  ]
+provider "google" {
+  version = "~> 3.42.0"
 }
-resource "local_file" "kubeconfig" {
-  content  = module.gke_auth.kubeconfig_raw
-  filename = "kubeconfig-${var.env_name}"
+resource "google_container_cluster" "primary" {
+  name     = "my-gke-cluster"
+  location = "us-central1"
+
+  # We can't create a cluster with no node pool defined, but we want to only use
+  # separately managed node pools. So we create the smallest possible default
+  # node pool and immediately delete it.
+  remove_default_node_pool = true
+  initial_node_count       = 1
+}
+resource "google_container_node_pool" "primary_preemptible_nodes" {
+  name       = "my-node-pool"
+  cluster    = google_container_cluster.primary.id
+  node_count = var.node_count
+
+  node_config {
+    preemptible  = true
+    machine_type = "e2-medium"
+
+    # Google recommends custom service accounts that have cloud-platform scope and permissions granted via IAM Roles.
+    service_account = google_service_account.default.email
+    oauth_scopes = [
+      "https://www.googleapis.com/auth/cloud-platform"
+    ]
+  }
 }
