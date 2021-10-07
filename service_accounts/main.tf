@@ -1,4 +1,4 @@
 resource "google_service_account" "default" {
-  account_id   = "Test service account id"
-  display_name = "Service Account"
+  account_id   = var.account_id
+  display_name = var.display_name
 }
